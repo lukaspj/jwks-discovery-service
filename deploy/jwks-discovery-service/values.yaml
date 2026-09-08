@@ -62,14 +62,23 @@ resources:
   limits:
     memory: 128Mi
 
+# No kubelet service-account token needed (IRSA webhook injects its own
+# projected token when serviceAccount.annotations is used).
+automountServiceAccountToken: false
+
 podSecurityContext:
   runAsNonRoot: true
+  # Matches the nonroot user in the distroless image (uid/gid 65532).
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
   seccompProfile:
     type: RuntimeDefault
 
 containerSecurityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
+  privileged: false
   capabilities:
     drop: [ALL]
 
