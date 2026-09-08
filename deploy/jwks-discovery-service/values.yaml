@@ -1,0 +1,70 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/laldershaab/jwks-discovery-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  # IRSA example:
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/jwks-discovery-service
+
+# S3 manifest source and service behavior.
+config:
+  bucket: ""            # required – MANIFEST_BUCKET
+  prefix: "manifests/"  # MANIFEST_PREFIX
+  region: "eu-west-1"   # AWS_REGION
+  rescanInterval: 60s   # RESCAN_INTERVAL
+  # Optional custom S3-compatible endpoint (e.g. MinIO) and path style:
+  endpoint: ""
+  pathStyle: false
+
+# Use an existing ConfigMap with the env keys instead of `config` above.
+existingConfigMap: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+probes:
+  liveness:
+    initialDelaySeconds: 2
+    periodSeconds: 10
+  readiness:
+    initialDelaySeconds: 2
+    periodSeconds: 5
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  additionalLabels: {}
+
+podAnnotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

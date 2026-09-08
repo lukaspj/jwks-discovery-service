@@ -1,0 +1,27 @@
+# Binaries
+/jwks-discovery-service
+*.exe
+
+# Go
+coverage.out
+coverage.html
+*.test
+
+# Environment / secrets
+.env
+.env.*
+
+# Editors / IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Helm
+*.tgz
+
+# Local scratch
+/tmp/
