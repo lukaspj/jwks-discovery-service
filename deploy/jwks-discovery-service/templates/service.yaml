@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  name: {{ include "jwks-discovery-service.fullname" . }}
   labels:
     {{- include "jwks-discovery-service.labels" . | nindent 4 }}
 spec:

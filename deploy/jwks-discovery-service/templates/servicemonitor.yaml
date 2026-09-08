@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  name: {{ include "jwks-discovery-service.fullname" . }}
   labels:
     {{- include "jwks-discovery-service.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.additionalLabels }}

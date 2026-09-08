@@ -17,11 +17,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Resource name (release name only – no chart name).
+*/}}
+{{- define "jwks-discovery-service.fullname" -}}
+{{ .Release.Name }}
+{{- end }}
+
+{{/*
 Service account name.
 */}}
 {{- define "jwks-discovery-service.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{ default (printf "%s-%s" .Release.Name .Chart.Name) .Values.serviceAccount.name }}
+{{ default (include "jwks-discovery-service.fullname" .) .Values.serviceAccount.name }}
 {{- else -}}
 {{ default "default" .Values.serviceAccount.name }}
 {{- end -}}
