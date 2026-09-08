@@ -49,7 +49,8 @@ spec:
             - secretRef:
                 name: {{ $credSecret }}
             {{- end }}
-          {{- else }}
+          {{- end }}
+          {{- if not .Values.existingConfigMap }}
           env:
             - name: MANIFEST_BUCKET
               value: {{ required "config.bucket is required" .Values.config.bucket | quote }}
