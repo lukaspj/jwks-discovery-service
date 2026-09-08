@@ -8,7 +8,8 @@ the embedded X.509 certificates, and serves a JWKS document per service at:
 
 ```
 GET /<name>/.well-known/jwks.json
-GET /<name>/.well-known          # alias
+GET /<name>/.well-known/openid-configuration
+GET /<name>/.well-known          # alias of the JWKS endpoint
 ```
 
 ## Manifest format
@@ -19,6 +20,7 @@ One YAML file per service in the bucket (e.g. `manifests/payments.yaml`):
 name: payments          # optional – defaults to the file name
 config:                 # optional, opaque service configuration
   audience: https://payments.example.com
+  issuer: https://payments.example.com   # used as OIDC discovery issuer
 
 cert: |
   -----BEGIN CERTIFICATE-----
@@ -51,6 +53,7 @@ Behavior:
 | `LISTEN_ADDR`     | no       | `:8080`     | HTTP listen address                      |
 | `S3_ENDPOINT`     | no       | –           | Custom endpoint (MinIO, LocalStack, …)   |
 | `S3_PATH_STYLE`   | no       | `false`     | Use path-style addressing                |
+| `PUBLIC_URL`      | no       | derived     | External base URL for issuer/jwks_uri    |
 
 AWS credentials follow the standard chain (IRSA, instance profile, env, …).
 
@@ -59,6 +62,7 @@ AWS credentials follow the standard chain (IRSA, instance profile, env, …).
 | Path                              | Purpose                              |
 | --------------------------------- | ------------------------------------ |
 | `/<name>/.well-known/jwks.json`   | JWKS document for the service        |
+| `/<name>/.well-known/openid-configuration` | OIDC discovery metadata      |
 | `/healthz`                        | Liveness probe                       |
 | `/readyz`                         | Readiness – 503 until first rescan   |
 | `/metrics`                        | Prometheus metrics                   |

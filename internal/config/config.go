@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,7 @@ type Config struct {
 	PathStyle     bool
 	RescanEvery   time.Duration
 	CacheMaxAge   time.Duration
+	PublicURL     string
 	LogJSONFormat bool
 }
 
@@ -29,6 +31,7 @@ func FromEnv() (*Config, error) {
 		PathStyle:   getEnvBool("S3_PATH_STYLE", false),
 		RescanEvery: getEnvDuration("RESCAN_INTERVAL", 60*time.Second),
 		CacheMaxAge: getEnvDuration("CACHE_MAX_AGE", 0),
+		PublicURL:   strings.TrimSuffix(os.Getenv("PUBLIC_URL"), "/"),
 	}
 	if c.Bucket == "" {
 		return nil, fmt.Errorf("MANIFEST_BUCKET is required")

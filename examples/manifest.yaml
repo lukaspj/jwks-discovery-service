@@ -6,7 +6,7 @@ name: payments
 # future use or by consumers that also read these manifests).
 config:
   audience: https://payments.example.com
-  issuer: https://issuer.example.com
+  issuer: https://payments.example.com
 
 # PEM certificate blob. May contain the leaf certificate followed by
 # intermediates. Public keys are extracted; each unique key becomes one

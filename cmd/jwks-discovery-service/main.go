@@ -58,7 +58,7 @@ func main() {
 
 	resc.Start(ctx, cfg.RescanEvery)
 
-	handler := server.New(registry, ready, logger)
+	handler := server.New(registry, ready, logger, cfg.PublicURL)
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           handler,

@@ -29,14 +29,17 @@ func (r *Rescan) RunOnce(ctx context.Context) error {
 		r.Logger.Warn("skipping manifest", "err", err)
 	}
 
-	sets := make(map[string]*jwks.JWKSet, len(manifests))
+	sets := make(map[string]*jwks.Service, len(manifests))
 	for name, m := range manifests {
 		set, err := jwks.Set(m.CertPEM)
 		if err != nil {
 			r.Logger.Warn("skipping service: bad certificate", "service", name, "err", err)
 			continue
 		}
-		sets[name] = set
+		sets[name] = &jwks.Service{
+			Set:    set,
+			Issuer: m.Config["issuer"],
+		}
 	}
 
 	if len(manifests) == 0 && len(errs) > 0 {

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -13,14 +14,29 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// OIDCDiscovery is the OpenID Connect Discovery 1.0 metadata document
+// served at /<name>/.well-known/openid-configuration.
+type OIDCDiscovery struct {
+	Issuer             string   `json:"issuer"`
+	JWKSURI            string   `json:"jwks_uri"`
+	ResponseTypes      []string `json:"response_types_supported"`
+	SubjectTypes       []string `json:"subject_types_supported"`
+	IDTokenSigningAlgs []string `json:"id_token_signing_alg_values_supported"`
+	Claims             []string `json:"claims_supported"`
+}
+
 // New builds the HTTP handler with all routes:
 //
 //	GET /{name}/.well-known/jwks.json  – RFC 7517 key set for the service
 //	GET /{name}/.well-known            – alias of the above
+//	GET /{name}/.well-known/openid-configuration – OIDC discovery metadata
 //	GET /healthz                       – liveness probe
 //	GET /readyz                        – readiness probe (has loaded services)
 //	GET /metrics                       – Prometheus metrics
-func New(reg *jwks.Registry, ready *Ready, logger *slog.Logger) http.Handler {
+//
+// publicURL is the externally reachable base URL used to build issuer and
+// jwks_uri values; when empty it is derived from the incoming request.
+func New(reg *jwks.Registry, ready *Ready, logger *slog.Logger, publicURL string) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -41,12 +57,12 @@ func New(reg *jwks.Registry, ready *Ready, logger *slog.Logger) http.Handler {
 
 	jwksHandler := func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
-		set := reg.Get(name)
-		if set == nil {
+		svc := reg.Get(name)
+		if svc == nil {
 			writeJSONError(w, http.StatusNotFound, "unknown service: "+name)
 			return
 		}
-		body, err := set.Marshal()
+		body, err := svc.Set.Marshal()
 		if err != nil {
 			logger.Error("marshal jwks", "service", name, "err", err)
 			writeJSONError(w, http.StatusInternalServerError, "internal error")
@@ -59,6 +75,42 @@ func New(reg *jwks.Registry, ready *Ready, logger *slog.Logger) http.Handler {
 	}
 	mux.HandleFunc("GET /{name}/.well-known/jwks.json", jwksHandler)
 	mux.HandleFunc("GET /{name}/.well-known", jwksHandler)
+
+	mux.HandleFunc("GET /{name}/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		svc := reg.Get(name)
+		if svc == nil {
+			writeJSONError(w, http.StatusNotFound, "unknown service: "+name)
+			return
+		}
+		base := publicURL
+		if base == "" {
+			scheme := "http"
+			if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+				scheme = proto
+			} else if r.TLS != nil {
+				scheme = "https"
+			}
+			base = scheme + "://" + r.Host
+		}
+		base = strings.TrimSuffix(base, "/")
+		issuer := svc.Issuer
+		if issuer == "" {
+			issuer = base + "/" + name
+		}
+		doc := OIDCDiscovery{
+			Issuer:             issuer,
+			JWKSURI:            base + "/" + name + "/.well-known/jwks.json",
+			ResponseTypes:      []string{"id_token"},
+			SubjectTypes:       []string{"public"},
+			IDTokenSigningAlgs: svc.Set.SigningAlgs(),
+			Claims:             []string{"iss", "sub", "aud", "exp", "iat"},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(doc)
+	})
 
 	return withMetrics(mux)
 }

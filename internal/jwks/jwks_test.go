@@ -132,8 +132,8 @@ func TestRegistrySwapAndGet(t *testing.T) {
 		t.Fatal("empty registry count must be 0")
 	}
 	set := &JWKSet{Keys: []JWK{{Kty: "RSA"}}}
-	reg.Swap(map[string]*JWKSet{"x": set})
-	if reg.Get("x") != set || reg.Count() != 1 {
+	reg.Swap(map[string]*Service{"x": {Set: set}})
+	if reg.Get("x") == nil || reg.Get("x").Set != set || reg.Count() != 1 {
 		t.Fatal("swap/get mismatch")
 	}
 }

@@ -194,10 +194,16 @@ func (s *JWKSet) Marshal() ([]byte, error) {
 	return b, nil
 }
 
+// Service is a discovered service: its JWKS plus OIDC metadata.
+type Service struct {
+	Set    *JWKSet
+	Issuer string
+}
+
 // Registry holds the currently loaded services, swapped atomically on
 // each successful rescan.
 type Registry struct {
-	current atomic.Pointer[map[string]*JWKSet]
+	current atomic.Pointer[map[string]*Service]
 }
 
 func NewRegistry() *Registry {
@@ -205,12 +211,12 @@ func NewRegistry() *Registry {
 }
 
 // Swap atomically replaces the registry contents.
-func (r *Registry) Swap(sets map[string]*JWKSet) {
+func (r *Registry) Swap(sets map[string]*Service) {
 	r.current.Store(&sets)
 }
 
-// Get returns the JWK Set for a service name, or nil if unknown.
-func (r *Registry) Get(name string) *JWKSet {
+// Get returns the service for a name, or nil if unknown.
+func (r *Registry) Get(name string) *Service {
 	p := r.current.Load()
 	if p == nil {
 		return nil
@@ -225,4 +231,17 @@ func (r *Registry) Count() int {
 		return 0
 	}
 	return len(*p)
+}
+
+// SigningAlgs returns the distinct JWS "alg" values in the set.
+func (s *JWKSet) SigningAlgs() []string {
+	seen := map[string]bool{}
+	algs := []string{}
+	for _, k := range s.Keys {
+		if k.Alg != "" && !seen[k.Alg] {
+			seen[k.Alg] = true
+			algs = append(algs, k.Alg)
+		}
+	}
+	return algs
 }

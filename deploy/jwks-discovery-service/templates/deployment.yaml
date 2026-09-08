@@ -52,6 +52,10 @@ spec:
             - name: S3_PATH_STYLE
               value: {{ .Values.config.pathStyle | quote }}
             {{- end }}
+            {{- if .Values.publicURL }}
+            - name: PUBLIC_URL
+              value: {{ .Values.publicURL | quote }}
+            {{- end }}
           {{- end }}
           livenessProbe:
             httpGet:
