@@ -112,5 +112,17 @@ serviceAccount:
     eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/jwks-discovery-service
 ```
 
+If IRSA is not available, inject S3 credentials from a Secret
+(`credentials.existingSecret`) or let the chart create one
+(`credentials.create=true`):
+
+```sh
+helm install jwks ./deploy/jwks-discovery-service \
+  --set config.bucket=my-manifest-bucket \
+  --set credentials.create=true \
+  --set credentials.accessKeyId=AKIA... \
+  --set credentials.secretAccessKey=...
+```
+
 The container image is built and pushed to GHCR by
 [`.github/workflows/build-push.yaml`](.github/workflows/build-push.yaml).

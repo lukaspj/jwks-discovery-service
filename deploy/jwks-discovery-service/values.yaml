@@ -25,6 +25,17 @@ config:
   endpoint: ""
   pathStyle: false
 
+# S3 credentials. Preferred path is IRSA via serviceAccount.annotations
+# (no static credentials). Otherwise reference an existing Secret or let
+# the chart create one. Keys expected by the AWS SDK env chain:
+# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN (optional).
+credentials:
+  existingSecret: ""   # e.g. jwks-s3-credentials
+  create: false
+  accessKeyId: ""
+  secretAccessKey: ""
+  sessionToken: ""
+
 # External base URL used to build OIDC issuer / jwks_uri values
 # (e.g. https://keys.example.com). Empty = derive from request Host.
 publicURL: ""

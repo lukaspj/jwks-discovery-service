@@ -32,10 +32,22 @@ spec:
           ports:
             - name: http
               containerPort: 8080
-          {{- if .Values.existingConfigMap }}
+          {{- $credSecret := "" }}
+          {{- if .Values.credentials.create }}
+          {{- $credSecret = printf "%s-credentials" (include "jwks-discovery-service.fullname" .) }}
+          {{- else if .Values.credentials.existingSecret }}
+          {{- $credSecret = .Values.credentials.existingSecret }}
+          {{- end }}
+          {{- if or $credSecret .Values.existingConfigMap }}
           envFrom:
+            {{- if .Values.existingConfigMap }}
             - configMapRef:
                 name: {{ .Values.existingConfigMap }}
+            {{- end }}
+            {{- if $credSecret }}
+            - secretRef:
+                name: {{ $credSecret }}
+            {{- end }}
           {{- else }}
           env:
             - name: MANIFEST_BUCKET
