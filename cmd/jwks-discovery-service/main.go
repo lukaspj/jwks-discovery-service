@@ -51,6 +51,7 @@ func main() {
 		Registry: registry,
 		Ready:    ready,
 		Logger:   logger,
+		KidStyle: jwks.KidStyle(cfg.KidStyle),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

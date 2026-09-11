@@ -33,11 +33,14 @@ cert: |
 
 Behavior:
 
-- Every `CERTIFICATE` block in the PEM blob is parsed; each unique public key
-  becomes one JWK.
-- `kid` is the [RFC 7638](https://www.rfc-editor.org/rfc/rfc7638) thumbprint of
-  the public key, so it stays stable across certificate renewals when the key
-  pair is reused.
+- Every `CERTIFICATE` or PKIX `PUBLIC KEY` block in the PEM blob is parsed;
+  each unique public key becomes one JWK.
+- `kid` is computed per the `KID_STYLE` setting (default
+  [RFC 7638](https://www.rfc-editor.org/rfc/rfc7638) thumbprint). For
+  Kubernetes service-account token verification set `KID_STYLE=spki-b64url`
+  (base64url SHA-256 of the DER-encoded SubjectPublicKeyInfo, matching
+  kube-apiserver's `keyIDFromPublicKey`); `spki-hex` matches client-go's
+  `keyutil.NewKeyID`.
 - Supported key types: RSA, ECDSA (P-256/P-384/P-521), Ed25519.
 - Invalid manifests are logged and skipped; they never block other services.
 - Duplicate service names are rejected.
@@ -50,6 +53,7 @@ Behavior:
 | `MANIFEST_PREFIX` | no       | `""`        | Key prefix to enumerate                  |
 | `AWS_REGION`      | no       | `us-east-1` | AWS region                               |
 | `RESCAN_INTERVAL` | no       | `60s`       | Rescan period (Go duration)              |
+| `KID_STYLE`       | no       | `rfc7638`   | `rfc7638`, `spki-b64url`, or `spki-hex`  |
 | `LISTEN_ADDR`     | no       | `:8080`     | HTTP listen address                      |
 | `S3_ENDPOINT`     | no       | –           | Custom endpoint (MinIO, LocalStack, …)   |
 | `S3_PATH_STYLE`   | no       | `false`     | Use path-style addressing                |

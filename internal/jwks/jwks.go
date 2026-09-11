@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -25,9 +26,14 @@ const (
 	// canonical required JWK members, base64url-encoded without padding.
 	// The default.
 	KidStyleRFC7638 KidStyle = "rfc7638"
-	// KidStyleSPKIHex is the kid used by kube-apiserver for service
-	// account token keys (client-go keyutil.NewKeyID): lowercase hex
-	// SHA-256 of the DER-encoded SubjectPublicKeyInfo.
+	// KidStyleSPKIB64URL is the kid style used by kube-apiserver when
+	// signing service account tokens (keyIDFromPublicKey in
+	// pkg/serviceaccount/jwt.go): base64url-unpadded SHA-256 of the
+	// DER-encoded SubjectPublicKeyInfo.
+	KidStyleSPKIB64URL KidStyle = "spki-b64url"
+	// KidStyleSPKIHex is the kid used by client-go keyutil.NewKeyID
+	// (also kube-apiserver SA key listing): lowercase hex SHA-256 of
+	// the DER-encoded SubjectPublicKeyInfo.
 	KidStyleSPKIHex KidStyle = "spki-hex"
 )
 
@@ -124,8 +130,8 @@ func KeyID(cert *x509.Certificate) (string, error) {
 
 // Set builds a JWK Set from one or more PEM certificates or PKIX
 // "PUBLIC KEY" blocks. Each unique public key yields one JWK; the kid
-// is the key thumbprint.
-func Set(pemData string) (*JWKSet, error) {
+// is computed with the given kid style.
+func Set(pemData string, style KidStyle) (*JWKSet, error) {
 	pubkeys, err := parsePEMPublicKeys(pemData)
 	if err != nil {
 		return nil, err
@@ -137,7 +143,7 @@ func Set(pemData string) (*JWKSet, error) {
 		if err != nil {
 			return nil, err
 		}
-		kid, err := rfc7638Thumbprint(jwk)
+		kid, err := kidFor(pub, style)
 		if err != nil {
 			return nil, err
 		}
@@ -151,6 +157,30 @@ func Set(pemData string) (*JWKSet, error) {
 		set.Keys = append(set.Keys, *jwk)
 	}
 	return set, nil
+}
+
+// kidFor computes the kid for a public key using the given style.
+func kidFor(pub any, style KidStyle) (string, error) {
+	switch style {
+	case "", KidStyleRFC7638:
+		jwk, err := publicKeyJWK(pub)
+		if err != nil {
+			return "", err
+		}
+		return rfc7638Thumbprint(jwk)
+	case KidStyleSPKIB64URL, KidStyleSPKIHex:
+		der, err := x509.MarshalPKIXPublicKey(pub)
+		if err != nil {
+			return "", fmt.Errorf("marshal SPKI: %w", err)
+		}
+		sum := sha256.Sum256(der)
+		if style == KidStyleSPKIHex {
+			return hex.EncodeToString(sum[:]), nil
+		}
+		return base64.RawURLEncoding.EncodeToString(sum[:]), nil
+	default:
+		return "", fmt.Errorf("unknown kid style %q", style)
+	}
 }
 
 func publicKeyJWK(pub any) (*JWK, error) {

@@ -19,6 +19,7 @@ type Rescan struct {
 	Registry *jwks.Registry
 	Ready    *server.Ready
 	Logger   *slog.Logger
+	KidStyle jwks.KidStyle
 }
 
 // RunOnce performs a single rescan. Returns error only when the whole
@@ -31,7 +32,7 @@ func (r *Rescan) RunOnce(ctx context.Context) error {
 
 	sets := make(map[string]*jwks.Service, len(manifests))
 	for name, m := range manifests {
-		set, err := jwks.Set(m.CertPEM)
+		set, err := jwks.Set(m.CertPEM, r.KidStyle)
 		if err != nil {
 			r.Logger.Warn("skipping service: bad certificate", "service", name, "err", err)
 			continue

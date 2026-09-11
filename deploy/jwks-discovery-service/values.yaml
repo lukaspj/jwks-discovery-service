@@ -21,6 +21,9 @@ config:
   prefix: "manifests/"  # MANIFEST_PREFIX
   region: "eu-west-1"   # AWS_REGION
   rescanInterval: 60s   # RESCAN_INTERVAL
+  # kid computation style: rfc7638 (default), spki-b64url (kube-apiserver
+  # service-account token signer), or spki-hex (client-go keyutil).
+  kidStyle: rfc7638     # KID_STYLE
   # Optional custom S3-compatible endpoint (e.g. MinIO) and path style:
   endpoint: ""
   pathStyle: false

@@ -6,8 +6,11 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"math/big"
 	"testing"
@@ -47,7 +50,7 @@ func TestSetRSA(t *testing.T) {
 		t.Fatal(err)
 	}
 	cert := makeCert(t, &key.PublicKey, key)
-	set, err := Set(encodePEM(cert))
+	set, err := Set(encodePEM(cert), KidStyleRFC7638)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +75,7 @@ func TestSetECDSA(t *testing.T) {
 		t.Fatal(err)
 	}
 	cert := makeCert(t, &key.PublicKey, key)
-	set, err := Set(encodePEM(cert))
+	set, err := Set(encodePEM(cert), KidStyleRFC7638)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +94,7 @@ func TestSetEd25519(t *testing.T) {
 		t.Fatal(err)
 	}
 	cert := makeCert(t, pub, priv)
-	set, err := Set(encodePEM(cert))
+	set, err := Set(encodePEM(cert), KidStyleRFC7638)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +111,7 @@ func TestSetDeduplicatesSameKey(t *testing.T) {
 	}
 	c1 := makeCert(t, &key.PublicKey, key)
 	c2 := makeCert(t, &key.PublicKey, key)
-	set, err := Set(encodePEM(c1, c2))
+	set, err := Set(encodePEM(c1, c2), KidStyleRFC7638)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +121,7 @@ func TestSetDeduplicatesSameKey(t *testing.T) {
 }
 
 func TestSetRejectsNoCertificates(t *testing.T) {
-	if _, err := Set("not a pem"); err == nil {
+	if _, err := Set("not a pem", KidStyleRFC7638); err == nil {
 		t.Fatal("want error for non-PEM input")
 	}
 }
@@ -145,7 +148,7 @@ func TestSetPKIXPublicKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	pemData := encodePublicKeyPEM(&rsaKey.PublicKey) + encodePublicKeyPEM(&ecKey.PublicKey) + encodePublicKeyPEM(edPub)
-	set, err := Set(pemData)
+	set, err := Set(pemData, KidStyleRFC7638)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +174,7 @@ func TestSetCertAndPKIXDeduplicated(t *testing.T) {
 	}
 	cert := makeCert(t, &key.PublicKey, key)
 	pemData := encodePEM(cert) + encodePublicKeyPEM(&key.PublicKey)
-	set, err := Set(pemData)
+	set, err := Set(pemData, KidStyleRFC7638)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +194,7 @@ func TestSetMixedCertAndPKIX(t *testing.T) {
 	}
 	cert := makeCert(t, &key1.PublicKey, key1)
 	pemData := encodePEM(cert) + encodePublicKeyPEM(&key2.PublicKey)
-	set, err := Set(pemData)
+	set, err := Set(pemData, KidStyleRFC7638)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,8 +205,65 @@ func TestSetMixedCertAndPKIX(t *testing.T) {
 
 func TestSetInvalidPublicKeyPEM(t *testing.T) {
 	block := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("garbage")})
-	if _, err := Set(string(block)); err == nil {
+	if _, err := Set(string(block), KidStyleRFC7638); err == nil {
 		t.Fatal("want error for invalid PKIX public key")
+	}
+}
+
+func TestSetKidStyleSPKIB64URL(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub := &key.PublicKey
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(der)
+	want := base64.RawURLEncoding.EncodeToString(sum[:])
+
+	cert := makeCert(t, pub, key)
+	set, err := Set(encodePEM(cert), KidStyleSPKIB64URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set.Keys) != 1 || set.Keys[0].Kid != want {
+		t.Fatalf("want kid %q, got %+v", want, set.Keys)
+	}
+}
+
+func TestSetKidStyleSPKIHex(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub := &key.PublicKey
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(der)
+	want := hex.EncodeToString(sum[:])
+
+	cert := makeCert(t, pub, key)
+	set, err := Set(encodePEM(cert), KidStyleSPKIHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set.Keys) != 1 || set.Keys[0].Kid != want {
+		t.Fatalf("want kid %q, got %+v", want, set.Keys)
+	}
+}
+
+func TestSetUnknownKidStyle(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert := makeCert(t, &key.PublicKey, key)
+	if _, err := Set(encodePEM(cert), KidStyle("bogus")); err == nil {
+		t.Fatal("want error for unknown kid style")
 	}
 }
 

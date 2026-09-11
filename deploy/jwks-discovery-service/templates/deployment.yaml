@@ -60,6 +60,8 @@ spec:
               value: {{ .Values.config.region | quote }}
             - name: RESCAN_INTERVAL
               value: {{ .Values.config.rescanInterval | toString | quote }}
+            - name: KID_STYLE
+              value: {{ .Values.config.kidStyle | quote }}
             {{- if .Values.config.endpoint }}
             - name: S3_ENDPOINT
               value: {{ .Values.config.endpoint | quote }}
