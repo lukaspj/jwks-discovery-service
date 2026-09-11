@@ -123,6 +123,90 @@ func TestSetRejectsNoCertificates(t *testing.T) {
 	}
 }
 
+func encodePublicKeyPEM(pub any) string {
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		panic(err)
+	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
+}
+
+func TestSetPKIXPublicKey(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edPub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pemData := encodePublicKeyPEM(&rsaKey.PublicKey) + encodePublicKeyPEM(&ecKey.PublicKey) + encodePublicKeyPEM(edPub)
+	set, err := Set(pemData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set.Keys) != 3 {
+		t.Fatalf("want 3 keys, got %d", len(set.Keys))
+	}
+	types := map[string]bool{}
+	for _, k := range set.Keys {
+		types[k.Kty] = true
+		if k.Kid == "" || k.Use != "sig" || k.Alg == "" {
+			t.Errorf("missing header fields: %+v", k)
+		}
+	}
+	if !types["RSA"] || !types["EC"] || !types["OKP"] {
+		t.Errorf("want RSA, EC, OKP keys, got %v", types)
+	}
+}
+
+func TestSetCertAndPKIXDeduplicated(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert := makeCert(t, &key.PublicKey, key)
+	pemData := encodePEM(cert) + encodePublicKeyPEM(&key.PublicKey)
+	set, err := Set(pemData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set.Keys) != 1 {
+		t.Fatalf("want deduplicated 1 key, got %d", len(set.Keys))
+	}
+}
+
+func TestSetMixedCertAndPKIX(t *testing.T) {
+	key1, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key2, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert := makeCert(t, &key1.PublicKey, key1)
+	pemData := encodePEM(cert) + encodePublicKeyPEM(&key2.PublicKey)
+	set, err := Set(pemData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set.Keys) != 2 {
+		t.Fatalf("want 2 keys, got %d", len(set.Keys))
+	}
+}
+
+func TestSetInvalidPublicKeyPEM(t *testing.T) {
+	block := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("garbage")})
+	if _, err := Set(string(block)); err == nil {
+		t.Fatal("want error for invalid PKIX public key")
+	}
+}
+
 func TestRegistrySwapAndGet(t *testing.T) {
 	reg := NewRegistry()
 	if reg.Get("x") != nil {

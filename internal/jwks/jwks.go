@@ -17,6 +17,20 @@ import (
 	"sync/atomic"
 )
 
+// KidStyle selects how the kid of a JWK is computed.
+type KidStyle string
+
+const (
+	// KidStyleRFC7638 is the RFC 7638 SHA-256 thumbprint over the
+	// canonical required JWK members, base64url-encoded without padding.
+	// The default.
+	KidStyleRFC7638 KidStyle = "rfc7638"
+	// KidStyleSPKIHex is the kid used by kube-apiserver for service
+	// account token keys (client-go keyutil.NewKeyID): lowercase hex
+	// SHA-256 of the DER-encoded SubjectPublicKeyInfo.
+	KidStyleSPKIHex KidStyle = "spki-hex"
+)
+
 // JWK is a JSON Web Key. Unused fields are omitted per RFC 7517 §3.
 type JWK struct {
 	Kty string `json:"kty"`
@@ -61,6 +75,38 @@ func ParseCertificates(pemData string) ([]*x509.Certificate, error) {
 	return certs, nil
 }
 
+// parsePEMPublicKeys extracts the public keys of every CERTIFICATE and
+// PUBLIC KEY (SubjectPublicKeyInfo) block in a PEM blob, in order.
+func parsePEMPublicKeys(pemData string) ([]any, error) {
+	var keys []any
+	rest := []byte(pemData)
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		switch block.Type {
+		case "CERTIFICATE":
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				return nil, fmt.Errorf("parse certificate: %w", err)
+			}
+			keys = append(keys, cert.PublicKey)
+		case "PUBLIC KEY":
+			pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+			if err != nil {
+				return nil, fmt.Errorf("parse public key: %w", err)
+			}
+			keys = append(keys, pub)
+		}
+	}
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("no CERTIFICATE or PUBLIC KEY blocks found in PEM")
+	}
+	return keys, nil
+}
+
 // KeyID returns the RFC 7638-style thumbprint of the certificate's public
 // key, base64url-encoded without padding. This is stable across
 // certificate renewals as long as the key pair is reused.
@@ -76,17 +122,18 @@ func KeyID(cert *x509.Certificate) (string, error) {
 	return thumbprint, nil
 }
 
-// Set builds a JWK Set from one or more PEM certificates. Each unique
-// public key yields one JWK; the kid is the key thumbprint.
+// Set builds a JWK Set from one or more PEM certificates or PKIX
+// "PUBLIC KEY" blocks. Each unique public key yields one JWK; the kid
+// is the key thumbprint.
 func Set(pemData string) (*JWKSet, error) {
-	certs, err := ParseCertificates(pemData)
+	pubkeys, err := parsePEMPublicKeys(pemData)
 	if err != nil {
 		return nil, err
 	}
 	set := &JWKSet{Keys: []JWK{}}
 	seen := map[string]bool{}
-	for _, cert := range certs {
-		jwk, err := publicKeyJWK(cert.PublicKey)
+	for _, pub := range pubkeys {
+		jwk, err := publicKeyJWK(pub)
 		if err != nil {
 			return nil, err
 		}
